@@ -3,6 +3,7 @@ from pathlib import Path
 from loguru import logger
 import sys
 from colorama import Fore
+import polars as pl
 
 logger.remove()
 fmt = '<green>{time:HH:mm:ss}</green> | <level>{message}</level>'
@@ -12,7 +13,7 @@ logger.add(sys.stdout, colorize=True, format=fmt)
 class EDA:
     def __init__(
             self,
-            file_path: Path,
+            file_path: Path = None,
             percentile: list = [0.25, 0.5, 0.75],
             prime_key: list = None,
     ):
@@ -34,7 +35,7 @@ class EDA:
 
     def sample(self, limit: int = 10):
         query = f"{self.query_select_all} limit {limit}"
-        self.df_sample = duckdb.query(query)
+        self.df_sample = duckdb.query(query).pl()
 
     def count_rows(self) -> int:
         query = f"SELECT count(*) total_rows FROM {self.query_read}"
@@ -77,7 +78,7 @@ class EDA:
         select value.* 
         from columns
         """
-        self.df_varchar = duckdb.sql(query)
+        self.df_varchar = duckdb.sql(query).pl()
 
         # numeric
         query = f"""
@@ -96,26 +97,28 @@ class EDA:
         select value.* 
         from columns
         """
-        self.df_numeric = duckdb.sql(query)
+        self.df_numeric = duckdb.sql(query).pl()
 
-    def analyze(self) -> dict:
+    def analyze(self, export: bool = False) -> dict:
         # run
         self.sample()
         total_rows = self.count_rows()
         self._summary_data_type_()
 
         # check duplicate
-        message = ''
+        message_dup = ''
         if self.prime_key:
             total_dup_key = self.check_duplicate()
             if total_dup_key != total_rows:
-                message += f'{Fore.RED}Duplicate prime key:{Fore.RESET} {total_dup_key:,.0f} {self.prime_key_query}'
+                message_dup += f'-> {Fore.RED}Duplicate prime key:{Fore.RESET} Found {total_dup_key:,.0f} {self.prime_key_query}'
+            else:
+                message_dup += f'-> {Fore.GREEN}Duplicate prime key:{Fore.RESET} Not Found {total_dup_key:,.0f} {self.prime_key_query}'
 
         # print log
         logger.info("[ANALYZE]:")
         print(
             f"-> Data Shape: ({total_rows:,.0f}, {self.df_sample.shape[1]}) \n"
-            f"-> {message}"
+            f"{message_dup}"
         )
 
         # export
@@ -124,10 +127,8 @@ class EDA:
             'numeric': self.df_numeric,
             'varchar': self.df_varchar,
         }
-        for i, v in dict_.items():
-            print(i, v)
-
-        return dict_
+        if export:
+            return dict_
 
     def value_count(self, col: str):
         total_rows = self.count_rows()
@@ -139,8 +140,9 @@ class EDA:
             group by 1
         )
         select *
-        , count_value / {total_rows} count_pct
+        , round(count_value / {total_rows}, 2) count_pct
         from base
+        order by 1
         """
         return duckdb.sql(query)
 
