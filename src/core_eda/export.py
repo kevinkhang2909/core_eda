@@ -3,7 +3,7 @@ class Export:
         pass
 
     def csv_to_parquet(self):
-        f"""
+        """
         COPY (SELECT * FROM read_csv_auto(
         'http://raw.githubusercontent.com/fivethirtyeight/data/master/bechdel/movies.csv'))
         TO 'movies.parquet' (FORMAT 'parquet');

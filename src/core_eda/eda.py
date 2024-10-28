@@ -112,7 +112,7 @@ class EDA:
                 message += f'{Fore.RED}Duplicate prime key:{Fore.RESET} {total_dup_key:,.0f} {self.prime_key_query}'
 
         # print log
-        logger.info(f"[ANALYZE]:")
+        logger.info("[ANALYZE]:")
         print(
             f"-> Data Shape: ({total_rows:,.0f}, {self.df_sample.shape[1]}) \n"
             f"-> {message}"

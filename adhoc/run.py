@@ -1,6 +1,5 @@
 from pathlib import Path
 from src.core_eda.eda import EDA
-import duckdb
 
 
 file = Path().home() / 'Downloads/Data/fss_item_sample/fss_items_clean.parquet'
