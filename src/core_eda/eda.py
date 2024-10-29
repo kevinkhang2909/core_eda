@@ -4,6 +4,8 @@ from loguru import logger
 import sys
 from colorama import Fore
 import polars as pl
+from tqdm import tqdm
+from .functions import jsd
 
 logger.remove()
 fmt = '<green>{time:HH:mm:ss}</green> | <level>{message}</level>'
@@ -146,15 +148,78 @@ class EDA:
         """
         return duckdb.sql(query)
 
-    def describe_group(self, prime_key: list, col_describe: str, percentile: list = [.25, .5, .75]):
-        prime_key_query = ', '.join(prime_key)
-        funcs = ['min', 'max', 'avg', 'stddev']
+    def _query_describe_group(self, col_group_by: list, col_describe: str, percentile: list = [.25, .5, .75]):
+        len_col_group_by = len(col_group_by)
+        range_ = {', '.join(range(1, len_col_group_by + 1))}
         query = f"""
-        select {prime_key_query}
-        , {', \n'.join([f"{i}({col_describe}) {i}_" for i in funcs])}
-        , {', \n'.join([f"percentile_cont({i}) WITHIN GROUP (ORDER BY {col_describe}) q{int(i * 100)}th" for i in percentile])}
-        from {self.query_read}
-        GROUP BY 1
-        ORDER BY 1
+        SELECT {', '.join(col_group_by)}
+        , '{col_describe}' feature_name
+        , {'\n, '.join([f"{i}({col_describe}) {i}_" for i in self.funcs])}
+        , {'\n, '.join([f"percentile_cont({i}) WITHIN GROUP (ORDER BY {col_describe}) q{int(i * 100)}th" for i in percentile])}
+        FROM {self.query_read}
+        GROUP BY {range_}, {len_col_group_by + 1}
+        ORDER BY {range_}
         """
+        return query
+
+    def describe_group(self, col_group_by: list | str, col_describe: list | str, percentile: list = [.25, .5, .75]):
+        # handle string
+        if isinstance(col_group_by, str):
+            col_group_by = [col_group_by]
+
+        if isinstance(col_describe, str):
+            col_describe = [col_describe]
+
+        # run
+        lst = []
+        for feature in tqdm(col_describe, desc=f'Run on stats {len(col_describe)} features'):
+            lst.append(f'({self._query_describe_group(col_group_by, feature, percentile)})')
+        query = '\nUNION ALL\n'.join(lst)
         return duckdb.sql(query).pl()
+
+
+class DistributionCheck:
+    def __init__(self, data: pl.DataFrame, col_key: str, col_treatment: str, col_features: list):
+        self.col_features = col_features
+        self.col_key = col_key
+        self.col_treatment = col_treatment
+        self.data = data
+
+        self.data_group = {}
+        self.binary_value = None
+        self._check_binary_value()
+        logger.info('[DISTRIBUTION CHECK]:')
+
+    def _check_binary_value(self):
+        self.binary_value = self.data[self.col_treatment].unique().to_list()
+        if len(self.binary_value) != 2:
+            raise ValueError(f'-> {self.col_treatment} value must have two values. Current: {self.binary_value}')
+
+    def split(self, frac_samples: float = .5) -> dict:
+        # split to 2 comparable parts
+        for i, v in enumerate(self.binary_value):
+            filter_ = pl.col(self.col_treatment) == v
+            self.data_group[f'{i}'] = self.data.filter(filter_).sample(fraction=frac_samples, seed=42)
+        self.data_group['all'] = pl.concat([i for i in self.data_group.values()])
+        # verbose
+        for i, v in self.data_group.items():
+            logger.info(f'-> {i}: {v.shape}')
+        return self.data_group
+
+    def jsd_score_multi_features(self):
+        df_jsd_full = pl.DataFrame()
+        for feature in tqdm(self.col_features, desc=f'Run JSD on {len(self.col_treatment)} features'):
+            score = jsd(self.data_group['0'][feature], self.data_group['1'][feature])
+            df_jsd = (
+                pl.DataFrame(score)
+                .with_columns(feature_name=pl.lit(feature))
+            )
+            df_jsd_full = pl.concat([df_jsd_full, df_jsd])
+        return df_jsd_full
+
+    def run(self, file_path: Path):
+        e = EDA(file_path=file_path)
+        df_stats = e.describe_group(col_group_by=self.col_treatment, col_describe=self.col_features)
+        df_jsd = self.jsd_score_multi_features()
+        df_stats = df_stats.join(df_jsd, how='left', on='feature_name')
+        return df_stats
