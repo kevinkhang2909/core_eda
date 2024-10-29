@@ -1,1 +1,1 @@
-from .eda import EDA
+from .eda import EDA, DistributionCheck
