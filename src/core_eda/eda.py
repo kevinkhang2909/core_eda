@@ -16,15 +16,16 @@ class EDA:
     def __init__(
             self,
             file_path: Path = None,
-            percentile: list = [0.25, 0.5, 0.75],
+            percentile: list = None,
             prime_key: list = None,
     ):
         self.file_path = file_path
         self.file_type = file_path.suffix[1:]
 
-        self.percentile = percentile
-        self.prime_key = prime_key
-        self.prime_key_query = ', '.join(self.prime_key)
+        if prime_key:
+            self.prime_key = prime_key
+            self.prime_key_query = ', '.join(self.prime_key)
+        self.percentile = [0.25, 0.5, 0.75] if not percentile else percentile
         self.funcs = ['mean', 'stddev_pop', 'min', 'max']
 
         self.query_read = f"read_{self.file_type}('{self.file_path}')"
@@ -148,21 +149,21 @@ class EDA:
         """
         return duckdb.sql(query)
 
-    def _query_describe_group(self, col_group_by: list, col_describe: str, percentile: list = [.25, .5, .75]):
+    def _query_describe_group(self, col_group_by: list, col_describe: str):
         len_col_group_by = len(col_group_by)
-        range_ = {', '.join(range(1, len_col_group_by + 1))}
+        range_ = ', '.join([str(i) for i in range(1, len_col_group_by + 1)])
         query = f"""
         SELECT {', '.join(col_group_by)}
         , '{col_describe}' feature_name
         , {'\n, '.join([f"{i}({col_describe}) {i}_" for i in self.funcs])}
-        , {'\n, '.join([f"percentile_cont({i}) WITHIN GROUP (ORDER BY {col_describe}) q{int(i * 100)}th" for i in percentile])}
+        , {'\n, '.join([f"percentile_cont({i}) WITHIN GROUP (ORDER BY {col_describe}) q{int(i * 100)}th" for i in self.percentile])}
         FROM {self.query_read}
         GROUP BY {range_}, {len_col_group_by + 1}
         ORDER BY {range_}
         """
         return query
 
-    def describe_group(self, col_group_by: list | str, col_describe: list | str, percentile: list = [.25, .5, .75]):
+    def describe_group(self, col_group_by: list | str, col_describe: list | str):
         # handle string
         if isinstance(col_group_by, str):
             col_group_by = [col_group_by]
@@ -172,8 +173,8 @@ class EDA:
 
         # run
         lst = []
-        for feature in tqdm(col_describe, desc=f'Run on stats {len(col_describe)} features'):
-            lst.append(f'({self._query_describe_group(col_group_by, feature, percentile)})')
+        for feature in tqdm(col_describe, desc=f'Run Stats on {len(col_describe)} features'):
+            lst.append(f'({self._query_describe_group(col_group_by, feature)})')
         query = '\nUNION ALL\n'.join(lst)
         return duckdb.sql(query).pl()
 
@@ -208,7 +209,7 @@ class DistributionCheck:
 
     def jsd_score_multi_features(self):
         df_jsd_full = pl.DataFrame()
-        for feature in tqdm(self.col_features, desc=f'Run JSD on {len(self.col_treatment)} features'):
+        for feature in tqdm(self.col_features, desc=f'Run JSD on {len(self.col_features)} features'):
             score = jsd(self.data_group['0'][feature], self.data_group['1'][feature])
             df_jsd = (
                 pl.DataFrame(score)
