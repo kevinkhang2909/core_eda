@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "core_eda"
-version = "0.0.3"
+version = "0.0.4"
 authors = [
   { name="Kevin Khang", email="kevinkhang2909@gmail.com" },
 ]
@@ -22,8 +22,7 @@ dependencies = [
     'tqdm',
     'duckdb',
     'loguru',
-    'ipython',
-    'jupyter',
+    'emoji',
 ]
 
 [project.urls]
