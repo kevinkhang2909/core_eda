@@ -147,7 +147,7 @@ class EDA:
         from base
         order by 1
         """
-        return duckdb.sql(query)
+        return duckdb.sql(query).pl()
 
     def _query_describe_group(self, col_group_by: list, col_describe: str):
         len_col_group_by = len(col_group_by)

@@ -1,6 +1,5 @@
 import polars as pl
 import matplotlib.pyplot as plt
-import seaborn as sns
 import re
 import emoji
 from tqdm import tqdm
@@ -69,7 +68,7 @@ class TextEDA:
         """Detect phone numbers."""
         return data.with_columns(
             pl.col(col)
-            .map_elements(lambda x: TextEDA._detect_pattern(x, TextEDA.PHONE_PATTERN))
+            .map_elements(lambda x: TextEDA._detect_pattern(x, TextEDA.PHONE_PATTERN), return_dtype=pl.Boolean)
             .alias('phone_detect')
         )
 
@@ -78,7 +77,7 @@ class TextEDA:
         """Detect URLs."""
         return data.with_columns(
             pl.col(col)
-            .map_elements(lambda x: TextEDA._detect_pattern(x, TextEDA.URL_PATTERN))
+            .map_elements(lambda x: TextEDA._detect_pattern(x, TextEDA.URL_PATTERN), return_dtype=pl.Boolean)
             .alias('url_detect')
         )
 
@@ -88,36 +87,6 @@ class TextEDA:
         patterns_set = set(patterns)
         return data.with_columns(
             pl.col(col)
-            .map_elements(lambda x: bool(patterns_set.intersection(x.split())))
+            .map_elements(lambda x: bool(patterns_set.intersection(x.split())), return_dtype=pl.Boolean)
             .alias('word_detect')
         )
-
-
-class TextPLOT:
-    @staticmethod
-    def len_word(data: pl.DataFrame, col_target: str, col_agg: str, **kwargs):
-        # kwargs
-        name = kwargs.get('name', '')
-        xtick: int = kwargs.get('xtick', 0)
-        xlim: list = kwargs.get('xlim', [])
-        fig_size: tuple = kwargs.get('fig_size', (8, 8))
-
-        data_group_by = data.group_by(col_target).agg(pl.col(col_agg).count())
-        # fig
-        fig, axes = plt.subplots(1, 2, figsize=fig_size)
-        axes = axes.flatten()
-
-        # bar plot
-        sns.barplot(data=data_group_by, x=col_target, y=col_agg, ax=axes[0])
-        axes[0].set_title(f'Numbers of {name} by {name} length')
-        if xtick > 0:
-            new_ticks = [i.get_text() for i in axes[0].get_xticklabels()]
-            axes[0].set_xticks(range(0, len(new_ticks), xtick))
-
-        # box plot
-        sns.boxplot(data, x=col_target, ax=axes[1])
-        axes[1].set_title(f'Distribution')
-        if xlim:
-            axes[1].set_xlim(xlim)
-
-        fig.tight_layout()
