@@ -17,14 +17,17 @@ class EDA:
             self,
             file_path: Path = None,
             percentile: list = None,
-            prime_key: list = None,
+            prime_key: str | list = None,
     ):
         self.file_path = file_path
         self.file_type = file_path.suffix[1:]
 
         if prime_key:
+            if isinstance(prime_key, str):
+                self.prime_key = [prime_key]
             self.prime_key = prime_key
             self.prime_key_query = ', '.join(self.prime_key)
+
         self.percentile = [0.25, 0.5, 0.75] if not percentile else percentile
         self.funcs = ['mean', 'stddev_pop', 'min', 'max']
 
@@ -45,24 +48,34 @@ class EDA:
         return duckdb.query(query).fetchnumpy()['total_rows'][0]
 
     def count_nulls(self) -> str:
-        query = f"SELECT * FROM {self.query_read}"
-        df = duckdb.query(query).pl()
+        # count null data
+        df = duckdb.query(self.query_select_all).pl()
         null = df.null_count().to_dict(as_series=False)
         null = {i: v[0] for i, v in null.items() if v[0] != 0}
+
+        # message
         null_message = f"""-> Null counts: 
         {null}
         """
         return null_message
 
-    def check_duplicate(self) -> int:
-        query = f"""
-        with base as (
-            SELECT distinct {self.prime_key_query}
-            FROM {self.query_read}
-        )
-        select count(*) total_prime_key from base
-        """
-        return duckdb.query(query).fetchnumpy()['total_prime_key'][0]
+    def check_duplicate(self, index_slice: int = 0):
+        # check duplicates data
+        df = duckdb.query(self.query_select_all).pl()
+        total_prime_key = df[self.prime_key].n_unique()
+
+        # message
+        sample_dup_df = None
+        if df.shape[0] != total_prime_key:
+            dup_message = f'-> {Fore.RED}Duplicate prime key:{Fore.RESET} Found {total_prime_key:,.0f} {self.prime_key_query}'
+            # sample
+            filter_ = (pl.col(i).is_duplicated() for i in self.prime_key)
+            sample_dup_dict = df.filter(filter_)[index_slice][[self.prime_key]].to_dict(as_series=False)
+            filter_ = (pl.col(i) == v[0] for i, v in sample_dup_dict.items())
+            sample_dup_df = df.filter(filter_)
+        else:
+            dup_message = f'-> {Fore.GREEN}Duplicate prime key:{Fore.RESET} Not Found {total_prime_key:,.0f} {self.prime_key_query}'
+        return dup_message, f"Sample duplicates: \n{sample_dup_df}"
 
     def _summary_data_type_(self):
         # set type
@@ -118,22 +131,16 @@ class EDA:
         total_rows = self.count_rows()
         self._summary_data_type_()
         message_null = self.count_nulls()
-
-        # check duplicate
-        message_dup = ''
-        if self.prime_key:
-            total_dup_key = self.check_duplicate()
-            if total_dup_key != total_rows:
-                message_dup += f'-> {Fore.RED}Duplicate prime key:{Fore.RESET} Found {total_dup_key:,.0f} {self.prime_key_query}'
-            else:
-                message_dup += f'-> {Fore.GREEN}Duplicate prime key:{Fore.RESET} Not Found {total_dup_key:,.0f} {self.prime_key_query}'
+        message_dup, sample_dup = self.check_duplicate()
 
         # print log
         logger.info(f"""[ANALYZE]:
         -> Data Shape: ({total_rows:,.0f}, {self.df_sample.shape[1]})
         {message_dup}
+        {sample_dup}
         {message_null}
         {self.df_sample.head()}
+        === DONE ===
         """)
 
         # export
