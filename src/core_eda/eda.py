@@ -36,13 +36,23 @@ class EDA:
         self.df_varchar = None
         self.df_duplicate = None
 
-    def sample(self, limit: int = 10):
+    def sample(self, limit: int = 1000):
         query = f"{self.query_select_all} limit {limit}"
         self.df_sample = duckdb.query(query).pl()
 
     def count_rows(self) -> int:
         query = f"SELECT count(*) total_rows FROM {self.query_read}"
         return duckdb.query(query).fetchnumpy()['total_rows'][0]
+
+    def count_nulls(self) -> str:
+        query = f"SELECT * FROM {self.query_read}"
+        df = duckdb.query(query).pl()
+        null = df.null_count().to_dict(as_series=False)
+        null = {i: v[0] for i, v in null.items() if v[0] != 0}
+        null_message = f"""-> Null counts: 
+        {null}
+        """
+        return null_message
 
     def check_duplicate(self) -> int:
         query = f"""
@@ -107,6 +117,7 @@ class EDA:
         self.sample()
         total_rows = self.count_rows()
         self._summary_data_type_()
+        message_null = self.count_nulls()
 
         # check duplicate
         message_dup = ''
@@ -118,11 +129,12 @@ class EDA:
                 message_dup += f'-> {Fore.GREEN}Duplicate prime key:{Fore.RESET} Not Found {total_dup_key:,.0f} {self.prime_key_query}'
 
         # print log
-        logger.info("[ANALYZE]:")
-        print(
-            f"-> Data Shape: ({total_rows:,.0f}, {self.df_sample.shape[1]}) \n"
-            f"{message_dup}"
-        )
+        logger.info(f"""[ANALYZE]:
+        -> Data Shape: ({total_rows:,.0f}, {self.df_sample.shape[1]})
+        {message_dup}
+        {message_null}
+        {self.df_sample.head()}
+        """)
 
         # export
         dict_ = {
