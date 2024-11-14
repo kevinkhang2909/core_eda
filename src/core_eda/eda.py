@@ -70,7 +70,7 @@ class EDA:
             dup_message = f'-> {Fore.RED}Duplicate prime key:{Fore.RESET} Found {total_prime_key:,.0f} {self.prime_key_query}'
             # sample
             filter_ = (pl.col(i).is_duplicated() for i in self.prime_key)
-            sample_dup_dict = df.filter(filter_)[index_slice][[self.prime_key]].to_dict(as_series=False)
+            sample_dup_dict = df.filter(filter_)[index_slice][self.prime_key].to_dict(as_series=False)
             filter_ = (pl.col(i) == v[0] for i, v in sample_dup_dict.items())
             sample_dup_df = df.filter(filter_)
         else:
