@@ -1,3 +1,4 @@
-from .eda import EDA, DistributionCheck
-from .text_eda import TextEDA
+from .eda_table import EDA_File, EDA_Dataframe
+from .distribution_check import DistributionCheck
+from .eda_text import TextEDA
 from .visualization import TextPLOT

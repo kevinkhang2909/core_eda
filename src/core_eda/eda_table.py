@@ -4,15 +4,15 @@ from loguru import logger
 import sys
 from colorama import Fore
 import polars as pl
+import polars.selectors as cs
 from tqdm import tqdm
-from .functions import jsd
 
 logger.remove()
 fmt = '<green>{time:HH:mm:ss}</green> | <level>{message}</level>'
 logger.add(sys.stdout, colorize=True, format=fmt)
 
 
-class EDA:
+class EDA_File:
     def __init__(
             self,
             file_path: Path = None,
@@ -198,48 +198,69 @@ class EDA:
         return duckdb.sql(query).pl()
 
 
-class DistributionCheck:
-    def __init__(self, data: pl.DataFrame, col_key: str, col_treatment: str, col_features: list):
-        self.col_features = col_features
-        self.col_key = col_key
-        self.col_treatment = col_treatment
+class EDA_Dataframe:
+    def __init__(self, data: pl.DataFrame, prime_key: str):
         self.data = data
+        self.prime_key = prime_key
+        logger.info('[EDA Dataframe]:')
 
-        self.data_group = {}
-        self.binary_value = None
-        self._check_binary_value()
-        logger.info('[DISTRIBUTION CHECK]:')
+        self._convert_decimal()
+        self.data_shape = self.data.shape
 
-    def _check_binary_value(self):
-        self.binary_value = self.data[self.col_treatment].unique().to_list()
-        if len(self.binary_value) != 2:
-            raise ValueError(f'-> {self.col_treatment} value must have two values. Current: {self.binary_value}')
+    def _convert_decimal(self):
+        col_decimal = [i for i, v in dict(self.data.schema).items() if v == pl.Decimal]
+        if col_decimal:
+            self.data = self.data.with_columns(pl.col(i).cast(pl.Float64) for i in col_decimal)
+            logger.info(f'-> Decimal columns found')
 
-    def split(self, frac_samples: float = .5) -> dict:
-        # split to 2 comparable parts
-        for i, v in enumerate(self.binary_value):
-            filter_ = pl.col(self.col_treatment) == v
-            self.data_group[f'{i}'] = self.data.filter(filter_).sample(fraction=frac_samples, seed=42)
-        self.data_group['all'] = pl.concat([i for i in self.data_group.values()])
-        # verbose
-        for i, v in self.data_group.items():
-            logger.info(f'-> {i}: {v.shape}')
-        return self.data_group
+    def count_nulls(self):
+        null = self.data.null_count().to_dict(as_series=False)
+        null = {i: (v[0], round(v[0] / self.data_shape[0], 2)) for i, v in null.items() if v[0] != 0}
+        logger.info(f'-> Null count: {null}')
+        return null
 
-    def jsd_score_multi_features(self):
-        df_jsd_full = pl.DataFrame()
-        for feature in tqdm(self.col_features, desc=f'Run JSD on {len(self.col_features)} features'):
-            score = jsd(self.data_group['0'][feature], self.data_group['1'][feature])
-            df_jsd = (
-                pl.DataFrame(score)
-                .with_columns(feature_name=pl.lit(feature))
-            )
-            df_jsd_full = pl.concat([df_jsd_full, df_jsd])
-        return df_jsd_full
+    def check_schema(self):
+        logger.info(f'-> Schema: {self.data.schema}')
 
-    def run(self, file_path: Path):
-        e = EDA(file_path=file_path)
-        df_stats = e.describe_group(col_group_by=self.col_treatment, col_describe=self.col_features)
-        df_jsd = self.jsd_score_multi_features()
-        df_stats = df_stats.join(df_jsd, how='left', on='feature_name')
-        return df_stats
+    def check_sum_zero(self):
+        sum_zero = self.data.select(~cs.by_dtype([pl.String, pl.Date])).fill_null(0).sum().to_dict(as_series=False)
+        sum_zero = [i for i, v in sum_zero.items() if v[0] == 0]
+        logger.info(f'-> Sum zero count: {sum_zero}')
+        return sum_zero
+
+    def check_duplicate(self):
+        # check
+        num_com = self.data[self.prime_key].n_unique()
+        dup_check = f'{Fore.RED}Duplicates{Fore.RESET}' if num_com != self.data_shape[0] else f'{Fore.GREEN}No duplicates{Fore.RESET}'
+        logger.info(
+            f'-> Data Shape: {self.data_shape} \n'
+            f'-> Numbers of prime key: {num_com:,.0f} \n'
+            f'-> Check duplicates prime key: {dup_check}'
+        )
+        # sample
+        value_dup = self.data.filter(pl.col(self.prime_key).is_duplicated())[self.prime_key][0]
+        sample = self.data.filter(pl.col(self.prime_key) == value_dup)
+        if num_com != self.data_shape[0]:
+            logger.info(f'-> Duplicated sample: {sample}')
+        return sample
+
+    def analyze(self):
+        self.check_schema()
+        self.count_nulls()
+        self.check_sum_zero()
+        self.check_duplicate()
+
+    def value_count(self, col: str, sort_col: str | int = 1):
+        query = f"""
+        with base as (
+            select {col}
+            , count(*) count_value
+            from self
+            group by 1
+        )
+        select *
+        , round(count_value / {self.data_shape[0]}, 2) count_pct
+        from base
+        order by {sort_col}
+        """
+        logger.info(self.data.sql(query))
