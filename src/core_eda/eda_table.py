@@ -83,7 +83,7 @@ class EDA_Dataframe:
         dup_dict = {True: f'{Fore.RED}Duplicates{Fore.RESET}', False: f'{Fore.GREEN}No duplicates{Fore.RESET}'}
         check = num_prime_key != self.row_count
         logger.info(
-            f'-> Data Shape: {self.row_count} \n'
+            f'-> Data Shape: {self.data.shape} \n'
             f'-> Numbers of prime key: {num_prime_key:,.0f} \n'
             f'-> Check duplicates prime key: {dup_dict[check]}'
         )
