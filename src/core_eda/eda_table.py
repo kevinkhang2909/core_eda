@@ -56,14 +56,16 @@ class EDA_Dataframe:
             self.prime_key = [prime_key]
         logger.info('[EDA Dataframe]:')
 
-        self._convert_decimal()
+        self.data = EDA_Dataframe.convert_decimal(self.data)
         self.row_count = self.data.shape[0]
 
-    def _convert_decimal(self):
-        col_decimal = [i for i, v in dict(self.data.schema).items() if v == pl.Decimal]
+    @staticmethod
+    def convert_decimal(data):
+        col_decimal = [i for i, v in dict(data.schema).items() if v == pl.Decimal]
         if col_decimal:
-            self.data = self.data.with_columns(pl.col(i).cast(pl.Float64) for i in col_decimal)
+            data = data.with_columns(pl.col(i).cast(pl.Float64) for i in col_decimal)
             logger.info(f'-> Decimal columns found: {len(col_decimal)} columns')
+        return data
 
     def count_nulls(self):
         null = self.data.null_count().to_dict(as_series=False)
@@ -117,3 +119,20 @@ class EDA_Dataframe:
         order by {sort_col}
         """
         logger.info(self.data.sql(query))
+
+    @staticmethod
+    def cut(data, col: str, conditions: dict):
+        """
+        conditions = {
+            '1 - 4': pl.col(col) < 5,
+            '5 - 9': pl.col(col).is_between(5, 9),
+            '10 - 15': pl.col(col).is_between(10, 15),
+            '15++': pl.col(col) > 15,
+        }
+        """
+        return data.with_columns(
+            pl.coalesce(
+                pl.when(v).then(pl.lit(i))
+                for i, v in conditions.items()
+            ).alias(f'cut_{col}')
+        )
