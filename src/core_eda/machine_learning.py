@@ -58,6 +58,7 @@ class PipelineClassification(DataInput):
         xgb_model.fit(
             self.x_train, self.y_train,
             eval_set=[(self.x_test, self.y_test)],
+            verbose=10,
         )
         # predict
         y_pred = xgb_model.predict(self.x_test)
