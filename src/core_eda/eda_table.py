@@ -6,6 +6,11 @@ import polars as pl
 import polars.selectors as cs
 from tqdm import tqdm
 from pprint import pprint
+import holidays
+from sklearn.preprocessing import FunctionTransformer
+from sklearn.compose import ColumnTransformer
+import numpy as np
+vn_holiday = holidays.country_holidays('VN')
 
 logger.remove()
 fmt = '<green>{time:HH:mm:ss}</green> | <level>{message}</level>'
@@ -135,4 +140,66 @@ class EDA_Dataframe:
                 pl.when(v).then(pl.lit(i))
                 for i, v in conditions.items()
             ).alias(f'cut_{col}')
+        )
+
+
+class ExtractTime:
+    @staticmethod
+    def sin_transformer(period):
+        return FunctionTransformer(lambda x: np.sin(x / period * 2 * np.pi))
+
+    @staticmethod
+    def cos_transformer(period):
+        return FunctionTransformer(lambda x: np.cos(x / period * 2 * np.pi))
+
+    @staticmethod
+    def trigonometric_features(data, dict_column: dict = None, merge_with_data: bool = True):
+        # sin/cos transformation
+        if dict_column is None:
+            dict_column = {'month': 12, 'day': 30}
+        sin_f = [(f'{i}_sin', ExtractTime.sin_transformer(v), [i]) for i, v in dict_column.items()]
+        cos_f = [(f'{i}_cos', ExtractTime.cos_transformer(v), [i]) for i, v in dict_column.items()]
+        ct = ColumnTransformer(transformers=sin_f + cos_f)
+        col = [i[0] for i in sin_f + cos_f]
+        df_trigonometric = pl.DataFrame(ct.fit_transform(data), schema=col)
+        # export
+        if merge_with_data:
+            return pl.concat([data, df_trigonometric], how='horizontal')
+        else:
+            return df_trigonometric
+
+    @staticmethod
+    def date_time_features(df: pl.DataFrame, col: str = 'grass_date') -> pl.DataFrame:
+        return (
+            df
+            .with_columns(
+                pl.col(col).dt.year().alias('year').cast(pl.Int16),
+                pl.col(col).dt.month().alias('month').cast(pl.Int8),
+                pl.col(col).dt.day().alias('day').cast(pl.Int8),
+                pl.col(col).dt.weekday().alias('weekday').cast(pl.Int8),
+                pl.col(col).map_elements(lambda x: 1 if vn_holiday.get(x) else 0, return_dtype=pl.Int64).alias('holiday')
+            )
+            .with_columns(
+                (pl.col('month') - pl.col('day')).alias('days_dif_spike')
+            )
+        )
+
+    @staticmethod
+    def trend(df: pl.DataFrame, col: list, index_column: str = 'grass_date', period: str = '3d') -> pl.DataFrame:
+        return df.with_columns(
+            pl.mean(i).rolling(index_column=index_column, period=period, closed='left').alias(f'trend_{period}_{i}')
+            for i in col
+        )
+
+    @staticmethod
+    def season(df: pl.DataFrame, col: list, period: str = '3d') -> pl.DataFrame:
+        return df.with_columns(
+            (pl.col(i) - pl.col(f'trend_{period}_{i}')).alias(f'season_{period}_{i}') for i in col
+        )
+
+    @staticmethod
+    def shift(df: pl.DataFrame, col: list, window: int = 7) -> pl.DataFrame:
+        name = 'next' if window > 0 else 'prev'
+        return df.with_columns(
+            pl.col(i).shift(window).alias(f'{name}_{window}d_{i}') for i in col
         )
