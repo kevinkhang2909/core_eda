@@ -1,4 +1,4 @@
-from .eda_table import EDA_Dataframe, Func, ExtractTime
+from .eda_table import EDA_Dataframe, Func, ExtractTime, Encode
 from .distribution_check import DistributionCheck
 from .eda_text import TextEDA
 from .visualization import TextPLOT

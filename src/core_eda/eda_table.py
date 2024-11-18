@@ -196,7 +196,7 @@ class ExtractTime:
     def shift(df: pl.DataFrame, col: list, window: int = 7) -> pl.DataFrame:
         name = 'next' if window < 0 else 'prev'
         return df.with_columns(
-            pl.col(i).shift(window).alias(f'{name}_{window}d_{abs(i)}') for i in col
+            pl.col(i).shift(window).alias(f'{name}_{abs(window)}d_{i}') for i in col
         )
 
 
