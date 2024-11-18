@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "core_eda"
-version = "0.0.16"
+version = "0.0.17"
 authors = [
   { name="Kevin Khang", email="kevinkhang2909@gmail.com" },
 ]
@@ -28,6 +28,7 @@ dependencies = [
     'seaborn',
     'xgboost',
     'scikit-learn',
+    'rich',
 ]
 
 [project.urls]

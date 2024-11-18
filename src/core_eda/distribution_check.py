@@ -1,13 +1,10 @@
 from pathlib import Path
-from loguru import logger
-import sys
+import duckdb
 import polars as pl
 from tqdm import tqdm
+from rich import print
+from .eda_table import Func
 from .functions import jsd
-
-logger.remove()
-fmt = '<green>{time:HH:mm:ss}</green> | <level>{message}</level>'
-logger.add(sys.stdout, colorize=True, format=fmt)
 
 
 class DistributionCheck:
@@ -20,7 +17,7 @@ class DistributionCheck:
         self.data_group = {}
         self.binary_value = None
         self._check_binary_value()
-        logger.info('[DISTRIBUTION CHECK]:')
+        print('[DISTRIBUTION CHECK]:')
 
     def _check_binary_value(self):
         self.binary_value = self.data[self.col_treatment].unique().to_list()
@@ -35,7 +32,7 @@ class DistributionCheck:
         self.data_group['all'] = pl.concat([i for i in self.data_group.values()])
         # verbose
         for i, v in self.data_group.items():
-            logger.info(f'-> {i}: {v.shape}')
+            print(f'-> {i}: {v.shape}')
         return self.data_group
 
     def jsd_score_multi_features(self):
@@ -50,7 +47,9 @@ class DistributionCheck:
         return df_jsd_full
 
     def run(self, file_path: Path):
-        e = EDA(file_path=file_path)
+        query = f"""select * from read_parquet('{file_path}')"""
+        data = duckdb.sql(query).pl()
+        e = Func(data=data)
         df_stats = e.describe_group(col_group_by=self.col_treatment, col_describe=self.col_features)
         df_jsd = self.jsd_score_multi_features()
         df_stats = df_stats.join(df_jsd, how='left', on='feature_name')

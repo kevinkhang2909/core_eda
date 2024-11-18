@@ -187,6 +187,35 @@ class ExtractTime:
         )
 
     @staticmethod
+    def trend_duckdb(
+            data: pl.DataFrame,
+            col: str,
+            col_partition: str = None,
+            col_index: str = 'grass_date',
+            period: int = 7,
+            function: str = 'sum'
+    ) -> pl.DataFrame:
+        add_partition = f'PARTITION BY {col_partition}' if col_partition else ''
+
+        query = f"""
+        SELECT {col_index}
+        , {col_partition}
+        , {col}
+        , {function}({col}) OVER range_time AS trend_{period}d_{col}
+        FROM data
+
+        WINDOW range_time AS (
+            {add_partition}
+            ORDER BY {col_index} ASC
+            RANGE BETWEEN {period} PRECEDING AND 0 FOLLOWING
+            EXCLUDE CURRENT ROW
+        )
+
+        ORDER BY 2 desc, 1
+        """
+        return duckdb.sql(query).pl()
+
+    @staticmethod
     def season(df: pl.DataFrame, col: list, period: str = '3d') -> pl.DataFrame:
         return df.with_columns(
             (pl.col(i) - pl.col(f'trend_{period}_{i}')).alias(f'season_{period}_{i}') for i in col

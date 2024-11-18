@@ -3,6 +3,7 @@ from pathlib import Path
 import joblib
 from sklearn.metrics import classification_report
 from xgboost import XGBClassifier, XGBRegressor
+from rich import print
 
 
 def feature_importance(model_input, all_features: list) -> pl.DataFrame:
@@ -44,7 +45,6 @@ class PipelineClassification(DataInput):
         # params
         if not params:
             params = {
-                'objective': 'binary:logistic',
                 'metric': 'auc',
                 'random_state': 42,
                 'device': 'cuda',
@@ -54,6 +54,7 @@ class PipelineClassification(DataInput):
             params = self.rf_params
 
         # train
+        print(params)
         xgb_model = XGBClassifier(**params)
         xgb_model.fit(
             self.x_train, self.y_train,
