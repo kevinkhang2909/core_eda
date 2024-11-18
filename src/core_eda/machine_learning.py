@@ -69,7 +69,7 @@ class PipelineClassification(DataInput):
             print(f'Save model to {model_path}')
 
         # report
-        print(classification_report(self.y_test, y_pred, target_names=self.target_names))
+        print(classification_report(self.y_test, y_pred, target_names=self.target_names, zero_division=0))
         return xgb_model
 
 

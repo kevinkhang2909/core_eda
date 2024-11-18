@@ -1,20 +1,15 @@
 import duckdb
-from loguru import logger
-import sys
 from colorama import Fore
 import polars as pl
 import polars.selectors as cs
 from tqdm import tqdm
-from pprint import pprint
+from rich import print
 import holidays
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import LabelEncoder
 import numpy as np
 vn_holiday = holidays.country_holidays('VN')
-
-logger.remove()
-fmt = '<green>{time:HH:mm:ss}</green> | <level>{message}</level>'
-logger.add(sys.stdout, colorize=True, format=fmt)
 
 
 class Func:
@@ -59,7 +54,7 @@ class EDA_Dataframe:
         self.prime_key = prime_key
         if isinstance(prime_key, str):
             self.prime_key = [prime_key]
-        logger.info('[EDA Dataframe]:')
+        print('[EDA Dataframe]:')
 
         self.data = EDA_Dataframe.convert_decimal(self.data)
         self.row_count = self.data.shape[0]
@@ -69,27 +64,27 @@ class EDA_Dataframe:
         col_decimal = [i for i, v in dict(data.schema).items() if v == pl.Decimal]
         if col_decimal:
             data = data.with_columns(pl.col(i).cast(pl.Float64) for i in col_decimal)
-            logger.info(f'-> Decimal columns found: {len(col_decimal)} columns')
+            print(f'-> Decimal columns found: {len(col_decimal)} columns')
         return data
 
     def count_nulls(self):
         null = self.data.null_count().to_dict(as_series=False)
         null = {i: (v[0], round(v[0] / self.row_count, 2)) for i, v in null.items() if v[0] != 0}
-        logger.info(f'-> Null count: {len(null)} columns')
-        pprint(null)
+        print(f'-> Null count: {len(null)} columns')
+        print(null)
 
     def check_sum_zero(self):
         sum_zero = self.data.select(~cs.by_dtype([pl.String, pl.Date])).fill_null(0).sum().to_dict(as_series=False)
         sum_zero = [i for i, v in sum_zero.items() if v[0] == 0]
-        logger.info(f'-> Sum zero count: {len(sum_zero)} columns')
-        pprint(sum_zero)
+        print(f'-> Sum zero count: {len(sum_zero)} columns')
+        print(sum_zero)
 
     def check_duplicate(self):
         # check
         num_prime_key = self.data.select(self.prime_key).n_unique()
         dup_dict = {True: f'{Fore.RED}Duplicates{Fore.RESET}', False: f'{Fore.GREEN}No duplicates{Fore.RESET}'}
         check = num_prime_key != self.row_count
-        logger.info(
+        print(
             f'-> Data Shape: {self.data.shape} \n'
             f'-> Numbers of prime key: {num_prime_key:,.0f} \n'
             f'-> Check duplicates prime key: {dup_dict[check]}'
@@ -97,7 +92,7 @@ class EDA_Dataframe:
         # sample
         sample = self.data.filter(self.data.select(self.prime_key).is_duplicated())[:5]
         if check:
-            logger.info('-> Duplicated sample:')
+            print('-> Duplicated sample:')
             with pl.Config(
                 tbl_hide_column_data_types=True,
                 tbl_hide_dataframe_shape=True,
@@ -123,7 +118,7 @@ class EDA_Dataframe:
         from base
         order by {sort_col}
         """
-        logger.info(self.data.sql(query))
+        print(self.data.sql(query))
 
     @staticmethod
     def cut(data, col: str, conditions: dict):
@@ -199,7 +194,18 @@ class ExtractTime:
 
     @staticmethod
     def shift(df: pl.DataFrame, col: list, window: int = 7) -> pl.DataFrame:
-        name = 'next' if window > 0 else 'prev'
+        name = 'next' if window < 0 else 'prev'
         return df.with_columns(
-            pl.col(i).shift(window).alias(f'{name}_{window}d_{i}') for i in col
+            pl.col(i).shift(window).alias(f'{name}_{window}d_{abs(i)}') for i in col
         )
+
+
+class Encode:
+    @staticmethod
+    def label(data: pl.DataFrame, col: list):
+        le = LabelEncoder()
+        dict_ = {}
+        for i in col:
+            dict_[i] = le.fit_transform(data[i].to_numpy())
+
+        return data.with_columns(pl.Series(i, v) for i, v in dict_.items())
