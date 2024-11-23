@@ -1,5 +1,4 @@
 import duckdb
-from colorama import Fore
 import polars as pl
 import polars.selectors as cs
 from rich import print
@@ -12,8 +11,7 @@ vn_holiday = holidays.country_holidays('VN')
 
 
 class Func:
-    def __init__(self, data: pl.DataFrame, percentile: list = None):
-        self.data = data
+    def __init__(self, percentile: list = None):
         self.percentile = [0.25, 0.5, 0.75] if not percentile else percentile
         self.funcs = ['mean', 'stddev_pop', 'min', 'max']
 
