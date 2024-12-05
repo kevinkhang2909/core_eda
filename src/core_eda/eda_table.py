@@ -12,12 +12,11 @@ vn_holiday = holidays.country_holidays('VN')
 
 
 class Func:
-    def __init__(self, data: pl.DataFrame, percentile: list = None):
-        self.data = data
+    def __init__(self, percentile: list = None):
         self.percentile = [0.25, 0.5, 0.75] if not percentile else percentile
         self.funcs = ['mean', 'stddev_pop', 'min', 'max']
 
-    def _query_describe_group(self, col_group_by: list, col_describe: str):
+    def _query_describe_group(self, data, col_group_by: list, col_describe: str):
         len_col_group_by = len(col_group_by)
         range_ = ', '.join([str(i) for i in range(1, len_col_group_by + 1)])
         query = f"""
@@ -25,13 +24,13 @@ class Func:
         , '{col_describe}' feature_name
         , {'\n, '.join([f"{i}({col_describe}) {i}_" for i in self.funcs])}
         , {'\n, '.join([f"percentile_cont({i}) WITHIN GROUP (ORDER BY {col_describe}) q{int(i * 100)}th" for i in self.percentile])}
-        FROM {self.data}
+        FROM data
         GROUP BY {range_}, {len_col_group_by + 1}
         ORDER BY {range_}
         """
         return query
 
-    def describe_group(self, col_group_by: list | str, col_describe: list | str):
+    def describe_group(self, data, col_group_by: list | str, col_describe: list | str):
         # handle string
         if isinstance(col_group_by, str):
             col_group_by = [col_group_by]
@@ -40,9 +39,7 @@ class Func:
             col_describe = [col_describe]
 
         # run
-        lst = []
-        for feature in tqdm(col_describe, desc=f'Run Stats on {len(col_describe)} features'):
-            lst.append(f'({self._query_describe_group(col_group_by, feature)})')
+        lst = [f'{self._query_describe_group(data, col_group_by, f)}' for f in col_describe]
         query = '\nUNION ALL\n'.join(lst)
         return duckdb.sql(query).pl()
 
