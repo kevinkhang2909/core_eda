@@ -1,7 +1,7 @@
 import polars as pl
 from pathlib import Path
 import joblib
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, r2_score
 from xgboost import XGBClassifier, XGBRegressor
 from rich import print
 
@@ -75,7 +75,7 @@ class PipelineClassification(DataInput):
 
 
 class PipelineRegression(DataInput):
-    def xgb(
+    def run_xgboost(
             self,
             params: dict = None,
     ):
@@ -86,12 +86,23 @@ class PipelineRegression(DataInput):
                 'random_state': 42,
                 'device': 'cuda',
             }
+
         # train
+        print(params)
         xgb_model = XGBRegressor(**params)
         xgb_model.fit(
             self.x_train, self.y_train,
             eval_set=[(self.x_test, self.y_test)],
+            verbose=10,
         )
+        # save model
+        if self.save_model:
+            model_path = joblib.dump(xgb_model, self.save_model)
+            print(f'Save model to {model_path}')
+
         # predict
-        pred = xgb_model.predict(self.x_test)
+        y_pred = xgb_model.predict(self.x_test)
+
+        # report
+        print(f'R2 Score: {r2_score(self.y_test, y_pred)}')
         return xgb_model

@@ -1,5 +1,4 @@
 import duckdb
-from colorama import Fore
 import polars as pl
 import polars.selectors as cs
 from tqdm import tqdm
@@ -68,21 +67,43 @@ class EDA_Dataframe:
         return data
 
     def count_nulls(self):
-        null = self.data.null_count().to_dict(as_series=False)
+        null = (
+            self.data
+            .null_count()
+            .to_dict(as_series=False)
+        )
         null = {i: (v[0], round(v[0] / self.row_count, 2)) for i, v in null.items() if v[0] != 0}
         print(f'-> Null count: {len(null)} columns')
         print(null)
 
     def check_sum_zero(self):
-        sum_zero = self.data.select(~cs.by_dtype([pl.String, pl.Date])).fill_null(0).sum().to_dict(as_series=False)
+        sum_zero = (
+            self.data
+            .select(~cs.by_dtype([pl.String, pl.Date]))
+            .fill_null(0)
+            .sum()
+            .to_dict(as_series=False)
+        )
         sum_zero = [i for i, v in sum_zero.items() if v[0] == 0]
         print(f'-> Sum zero count: {len(sum_zero)} columns')
         print(sum_zero)
 
+    def check_infinity(self):
+        infinity = (
+            self.data
+            .select(~cs.by_dtype([pl.String, pl.Date]))
+            .select(pl.all().is_infinite())
+            .sum()
+            .to_dict(as_series=False)
+        )
+        infinity = [i for i, v in infinity.items() if v[0] != 0]
+        print(f'-> Infinity count: {len(infinity)} columns')
+        print(infinity)
+
     def check_duplicate(self):
         # check
         num_prime_key = self.data.select(self.prime_key).n_unique()
-        dup_dict = {True: f'{Fore.RED}Duplicates{Fore.RESET}', False: f'{Fore.GREEN}No duplicates{Fore.RESET}'}
+        dup_dict = {True: f'[red]Duplicates[/]', False: f'[green]No duplicates[/]'}
         check = num_prime_key != self.row_count
         print(
             f'-> Data Shape: {self.data.shape} \n'
@@ -104,6 +125,7 @@ class EDA_Dataframe:
         self.count_nulls()
         self.check_sum_zero()
         self.check_duplicate()
+        self.check_infinity()
 
     def value_count(self, col: str, sort_col: str | int = 1):
         query = f"""
@@ -116,7 +138,6 @@ class EDA_Dataframe:
         select *
         , round(count_value / {self.row_count}, 2) count_pct
         from base
-        order by {sort_col}
         """
         print(self.data.sql(query))
 
