@@ -233,6 +233,7 @@ class ExtractTime:
             SELECT {col_index}
             , {col_partition}
             , {col}
+            , {period} period
             FROM data
             {add_order}
         )
@@ -244,7 +245,7 @@ class ExtractTime:
         WINDOW range_time AS (
             {add_partition}
             ORDER BY {col_index} ASC
-            RANGE BETWEEN {period} PRECEDING AND 0 FOLLOWING
+            RANGE BETWEEN period PRECEDING AND 0 FOLLOWING
             EXCLUDE CURRENT ROW
         )
         """
