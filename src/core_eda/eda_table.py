@@ -225,6 +225,8 @@ class ExtractTime:
             add_partition = f'PARTITION BY {col_partition}'
             add_order = f'ORDER BY {col_partition}, {col_index}'
 
+        column_name = f'{function}_{period}d_{col}' if isinstance(period, int) else f'{function}_dynamic_{col}'
+
         # query
         query = f"""
         with base as (
@@ -236,7 +238,7 @@ class ExtractTime:
         )
         
         select * 
-        , {function}({col}) OVER range_time AS {function}_{period}d_{col}
+        , {function}({col}) OVER range_time AS {column_name}
         from base
         
         WINDOW range_time AS (
