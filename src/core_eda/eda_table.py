@@ -1,7 +1,6 @@
 import duckdb
 import polars as pl
 import polars.selectors as cs
-from tqdm import tqdm
 from rich import print
 import holidays
 from sklearn.preprocessing import FunctionTransformer
@@ -124,19 +123,15 @@ class EDA_Dataframe:
         self.check_duplicate()
         self.check_infinity()
 
-    def value_count(self, col: str, sort_col: str | int = 1):
-        query = f"""
-        with base as (
-            select {col}
-            , count(*) count_value
-            from self
-            group by 1
+    @staticmethod
+    def value_count(data, col: str, sort_col: str = 'count'):
+        value_count = (
+            data[col].value_counts()
+            .with_columns((pl.col('count') / data.shape[0]).round(3).alias('count_pct'))
+            .sort(sort_col, descending=True)
         )
-        select *
-        , round(count_value / {self.row_count}, 2) count_pct
-        from base
-        """
-        print(self.data.sql(query))
+        print(value_count)
+        return value_count
 
     @staticmethod
     def cut(data, col: str, conditions: dict):
@@ -210,26 +205,46 @@ class ExtractTime:
             col: str,
             col_partition: str = None,
             col_index: str = 'grass_date',
-            period: int = 7,
+            period: int | str = 7,
             function: str = 'sum'
     ) -> pl.DataFrame:
-        add_partition = f'PARTITION BY {col_partition}' if col_partition else ''
+        """
+        Args:
+            data: pl.DataFrame
+            col: total_order
+            col_partition: item_id
+            col_index: grass_date
+            period: str if add column window
+            function: sum | avg | max | min | stddev_pop
+        Returns:
+            pl.DataFrame
+        """
+        # config
+        add_partition, add_order = '', f'ORDER BY {col_index}'
+        if col_partition:
+            add_partition = f'PARTITION BY {col_partition}'
+            add_order = f'ORDER BY {col_partition}, {col_index}'
 
+        # query
         query = f"""
-        SELECT {col_index}
-        , {col_partition}
-        , {col}
-        , {function}({col}) OVER range_time AS trend_{period}d_{col}
-        FROM data
-
+        with base as (
+            SELECT {col_index}
+            , {col_partition}
+            , {col}
+            FROM data
+            {add_order}
+        )
+        
+        select * 
+        , {function}({col}) OVER range_time AS {function}_{period}d_{col}
+        from base
+        
         WINDOW range_time AS (
             {add_partition}
             ORDER BY {col_index} ASC
             RANGE BETWEEN {period} PRECEDING AND 0 FOLLOWING
             EXCLUDE CURRENT ROW
         )
-
-        ORDER BY 2 desc, 1
         """
         return duckdb.sql(query).pl()
 
