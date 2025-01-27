@@ -263,14 +263,3 @@ class ExtractTime:
         return df.with_columns(
             pl.col(i).shift(window).alias(f'{name}_{abs(window)}d_{i}') for i in col
         )
-
-
-class Encode:
-    @staticmethod
-    def label(data: pl.DataFrame, col: list):
-        le = LabelEncoder()
-        dict_ = {}
-        for i in col:
-            dict_[i] = le.fit_transform(data[i].to_numpy())
-
-        return data.with_columns(pl.Series(i, v) for i, v in dict_.items())
