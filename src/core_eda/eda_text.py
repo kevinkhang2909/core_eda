@@ -22,6 +22,9 @@ class TextEDA:
     BRACKETS_PATTERN = re.compile(r"[\(\[\<\"\|].*?[\)\]\>\"\|]")
     SPECIAL_CHARS_PATTERN = re.compile(r'\-|\_|\*')
     WHITESPACE_PATTERN = re.compile(r'\s+')
+    LINE_BREAK_PATTERN = re.compile(r'\n+')
+    WINDOW_STYLE_LINE_BREAK_PATTERN = re.compile(r'\r\n')
+
     PHONE_PATTERN = re.compile(r'(\+84|0)[0-9]{9,10}')
     URL_PATTERN = re.compile(
         r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
@@ -37,7 +40,7 @@ class TextEDA:
         return re.sub(regex, "", text)
 
     @staticmethod
-    def clean_text_pipeline(text: str) -> str:
+    def clean_text_multi_method(text: str) -> str:
         """Clean text for repeated texts."""
         text = str(text).lower().strip()
         text = TextEDA.remove_text_between_emojis(text)
@@ -45,6 +48,7 @@ class TextEDA:
         text = TextEDA.BRACKETS_PATTERN.sub(' ', text)
         text = TextEDA.SPECIAL_CHARS_PATTERN.sub(' ', text)
         text = TextEDA.WHITESPACE_PATTERN.sub(' ', text)
+        text = TextEDA.LINE_BREAK_PATTERN.sub(' ', text)
         return text.rstrip('.').strip()
 
     @staticmethod
@@ -53,9 +57,9 @@ class TextEDA:
         return data.with_columns(pl.col(col).str.split(seperator).list.len().alias(f'{col}_word_count'))
 
     @staticmethod
-    def clean_text(data: pl.DataFrame, col: str = 'item_name') -> pl.DataFrame:
+    def clean_text_pipeline_polars(data: pl.DataFrame, col: str = 'item_name') -> pl.DataFrame:
         """Clean text and add to df."""
-        lst = [TextEDA.clean_text_pipeline(str(x)) for x in tqdm(data[col].to_list(), desc='[TextEDA] Clean Text')]
+        lst = [TextEDA.clean_text_multi_method(str(x)) for x in tqdm(data[col].to_list(), desc='[TextEDA] Clean Text')]
         return data.with_columns(pl.Series(name=f'{col}_clean', values=lst))
 
     @staticmethod
