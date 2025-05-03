@@ -3,7 +3,7 @@ import duckdb
 import polars as pl
 from tqdm import tqdm
 from rich import print
-from .eda_table import Func
+from .eda_table import Describe
 from .functions import jsd
 
 
@@ -49,8 +49,7 @@ class DistributionCheck:
     def run(self, file_path: Path):
         query = f"""select * from read_parquet('{file_path}')"""
         data = duckdb.sql(query).pl()
-        e = Func(data=data)
-        df_stats = e.describe_group(col_group_by=self.col_treatment, col_describe=self.col_features)
+        df_stats = Describe().run(data=data, col_group_by=self.col_treatment, col_describe=self.col_features)
         df_jsd = self.jsd_score_multi_features()
         df_stats = df_stats.join(df_jsd, how='left', on='feature_name')
         return df_stats
