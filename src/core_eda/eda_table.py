@@ -70,7 +70,7 @@ class PreCheck:
         col_decimal = [i for i, v in dict(data.schema).items() if v == pl.Decimal]
         if col_decimal:
             data = data.with_columns(pl.col(i).cast(pl.Float64) for i in col_decimal)
-            print(f"-> Decimal columns found: {len(col_decimal)} columns")
+            print(f"== Decimal columns found: {len(col_decimal)} columns")
         return data
 
     def count_nulls(self):
@@ -80,7 +80,7 @@ class PreCheck:
             for i, v in null.items()
             if v[0] != 0
         }
-        print(f"-> Null count: {len(null)} columns")
+        print(f"== Null count: {len(null)} columns")
         pprint(null)
 
     def check_sum_zero(self):
@@ -91,7 +91,7 @@ class PreCheck:
             .to_dict(as_series=False)
         )
         sum_zero = [i for i, v in sum_zero.items() if v[0] == 0]
-        print(f"-> Sum zero count: {len(sum_zero)} columns")
+        print(f"== Sum zero count: {len(sum_zero)} columns")
         pprint(sum_zero)
 
     def check_infinity(self):
@@ -102,23 +102,23 @@ class PreCheck:
             .to_dict(as_series=False)
         )
         infinity = [i for i, v in infinity.items() if v[0] != 0]
-        print(f"-> Infinity count: {len(infinity)} columns")
+        print(f"== Infinity count: {len(infinity)} columns")
         pprint(infinity)
 
     def check_duplicate(self):
         # check
         num_prime_key = self.data.select(self.prime_key).n_unique()
-        dup_dict = {True: f"[red]Duplicates[/]", False: f"[green]No duplicates[/]"}
+        dup_dict = {True: "Duplicates", False: "No duplicates"}
         check = num_prime_key != self.row_count
         print(
-            f"-> Data Shape: {self.data.shape} \n"
-            f"-> Numbers of prime key: {num_prime_key:,.0f} \n"
-            f"-> Check duplicates prime key: {dup_dict[check]}"
+            f"== Data Shape: {self.data.shape} \n"
+            f"== Numbers of prime key: {num_prime_key:,.0f} \n"
+            f"== Check duplicates prime key: {dup_dict[check]}"
         )
         # sample
         sample = self.data.filter(self.data.select(self.prime_key).is_duplicated())[:5]
         if check:
-            print("-> Duplicated sample:")
+            print("== Duplicated sample:")
             with pl.Config(
                 tbl_hide_column_data_types=True,
                 tbl_hide_dataframe_shape=True,
@@ -133,12 +133,12 @@ class PreCheck:
         self.check_infinity()
 
     @staticmethod
-    def value_count(data, col: str | list[str], sort_col: str = "count"):
-        if isinstance(col, str):
-            col = [col]
-        for c in col:
+    def value_count(data, cols: str | list[str], sort_col: str = "count"):
+        if isinstance(cols, str):
+            cols = [cols]
+        for i in cols:
             value_count = (
-                data[col]
+                data[i]
                 .value_counts()
                 .with_columns((pl.col("count") / data.shape[0]).round(3).alias("count_pct"))
                 .sort(sort_col, descending=True)
