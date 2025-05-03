@@ -20,10 +20,10 @@ def interpret_jsd(jsd_value):
     """
     thresholds = np.array([0, 0.05, 0.1, 0.3])
     interpretations = [
-        'Very similar',
-        'Slightly different',
-        'Moderately different',
-        'Substantially different'
+        "Very similar",
+        "Slightly different",
+        "Moderately different",
+        "Substantially different",
     ]
     index = min(np.searchsorted(thresholds, jsd_value), len(interpretations) - 1)
     return interpretations[index]
@@ -43,7 +43,4 @@ def jsd(dist1, dist2, bins: int = 50):
     hist2 = hist2 / np.sum(hist2)
     js_div = jensenshannon(hist1, hist2).item()
 
-    return {
-        'score': js_div,
-        'meaning': interpret_jsd(js_div)
-    }
+    return {"score": js_div, "meaning": interpret_jsd(js_div)}

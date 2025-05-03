@@ -20,7 +20,6 @@ from sklearn.model_selection import train_test_split, KFold, TimeSeriesSplit
 
 from xgboost import XGBClassifier, XGBRegressor
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from tabpfn import TabPFNClassifier, TabPFNRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
 
 plt.style.use('fivethirtyeight')
