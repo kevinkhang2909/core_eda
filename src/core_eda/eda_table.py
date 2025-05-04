@@ -116,14 +116,14 @@ class PreCheck:
             f"== Check duplicates prime key: {dup_dict[check]}"
         )
         # sample
-        sample = self.data.filter(self.data.select(self.prime_key).is_duplicated())[:5]
+        sample = self.data.filter(self.data.select(self.prime_key).is_duplicated())
         if check:
             print("== Duplicated sample:")
             with pl.Config(
                 tbl_hide_column_data_types=True,
                 tbl_hide_dataframe_shape=True,
             ):
-                print(sample)
+                pprint(sample.to_dicts()[:5])
         return sample
 
     def analyze(self):
@@ -149,10 +149,10 @@ class PreCheck:
     def cut(data, col: str, conditions: dict):
         """
         conditions = {
-            '1 - 4': pl.col(col) < 5,
-            '5 - 9': pl.col(col).is_between(5, 9),
-            '10 - 15': pl.col(col).is_between(10, 15),
-            '15++': pl.col(col) > 15,
+            "1 - 4": pl.col(col) < 5,
+            "5 - 9": pl.col(col).is_between(5, 9),
+            "10 - 15": pl.col(col).is_between(10, 15),
+            "15++": pl.col(col) > 15,
         }
         """
         return data.with_columns(
