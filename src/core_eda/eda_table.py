@@ -133,17 +133,21 @@ class PreCheck:
         self.check_infinity()
 
     @staticmethod
-    def value_count(data, cols: str | list[str], sort_col: str = "count"):
-        if isinstance(cols, str):
-            cols = [cols]
+    def value_count(data, cols: list[str], sort_col: str = "count", verbose: bool = False):
+        count_pct = (pl.col("count") / data.shape[0]).round(3).alias("count_pct")
+        df_val = pl.DataFrame()
         for i in cols:
-            value_count = (
+            tmp = (
                 data[i]
                 .value_counts()
-                .with_columns((pl.col("count") / data.shape[0]).round(3).alias("count_pct"))
+                .with_columns(count_pct)
+                .with_columns(pl.lit(i).alias("feature"))
                 .sort(sort_col, descending=True)
             )
-            print(value_count)
+            df_val = pl.concat([df_val, tmp], how="vertical")
+            if verbose:
+                print(tmp)
+        return df_val
 
     @staticmethod
     def cut(data, col: str, conditions: dict):
