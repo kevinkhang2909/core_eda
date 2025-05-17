@@ -49,7 +49,7 @@ class Describe:
             col_describe = [col_describe]
 
         # run
-        lst = [f"{Describe._query(data, col_group_by, f)}" for f in col_describe]
+        lst = [f"({Describe._query(data, col_group_by, f)})" for f in col_describe]
         query = "\nUNION ALL\n".join(lst)
         return duckdb.sql(query).pl()
 
