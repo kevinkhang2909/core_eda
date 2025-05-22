@@ -55,7 +55,9 @@ class Describe:
 
 
 class PreCheck:
-    def __init__(self, data: pl.DataFrame, prime_key: str | list[str]):
+    def __init__(
+        self, data: pl.DataFrame, prime_key: str | list[str], verbose: bool = True
+    ):
         self.data = data
         self.prime_key = prime_key
         if isinstance(prime_key, str):
@@ -64,6 +66,7 @@ class PreCheck:
 
         self.data = PreCheck.convert_decimal(self.data)
         self.row_count = self.data.shape[0]
+        self.verbose = verbose
 
     @staticmethod
     def convert_decimal(data):
@@ -81,7 +84,9 @@ class PreCheck:
             if v[0] != 0
         }
         print(f"== Null count: {len(null)} columns")
-        pprint(null)
+        if self.verbose:
+            pprint(null)
+        return null
 
     def check_sum_zero(self):
         sum_zero = (
@@ -92,7 +97,9 @@ class PreCheck:
         )
         sum_zero = [i for i, v in sum_zero.items() if v[0] == 0]
         print(f"== Sum zero count: {len(sum_zero)} columns")
-        pprint(sum_zero)
+        if self.verbose:
+            pprint(sum_zero)
+        return sum_zero
 
     def check_infinity(self):
         infinity = (
@@ -103,7 +110,9 @@ class PreCheck:
         )
         infinity = [i for i, v in infinity.items() if v[0] != 0]
         print(f"== Infinity count: {len(infinity)} columns")
-        pprint(infinity)
+        if self.verbose:
+            pprint(infinity)
+        return infinity
 
     def check_duplicate(self):
         # check
@@ -133,7 +142,9 @@ class PreCheck:
         self.check_infinity()
 
     @staticmethod
-    def value_count(data, cols: list[str], sort_col: str = "count", verbose: bool = False):
+    def value_count(
+        data, cols: list[str], sort_col: str = "count", verbose: bool = False
+    ):
         count_pct = (pl.col("count") / data.shape[0]).round(3).alias("count_pct")
         df_val = pl.DataFrame()
         for i in cols:
